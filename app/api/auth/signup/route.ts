@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, ensureDatabaseReady } from "@/lib/db/prisma";
 import { sessionOptions, SessionData } from "@/lib/auth/session";
 
 const SignupSchema = z.object({
@@ -33,6 +33,8 @@ const DEFAULT_PLATFORMS = [
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureDatabaseReady(prisma);
+
     const body = await req.json();
     const parsed = SignupSchema.safeParse(body);
 
