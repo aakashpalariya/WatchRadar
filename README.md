@@ -113,8 +113,8 @@ npm run db:seed
 
 This creates a demo account:
 - **Email:** demo@watchradar.app
-- **Password:** Demo1234
-- **DOB:** 1995-06-15 (for password reset)
+- **Password:** Demo@123
+- **DOB:** 2001-01-01 / 01/01/2001 (for password reset)
 
 With 5 movies (Interstellar, Inception, Avengers: Endgame, Top Gun: Maverick, Moonlight) and 5 series (Breaking Bad, Game of Thrones, Stranger Things, Arcane, The Boys).
 

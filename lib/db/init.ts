@@ -83,8 +83,8 @@ export async function ensureDatabaseReady(prisma: PrismaClient): Promise<void> {
       
       if (userCount === 0) {
         const demoEmail = "demo@watchradar.app";
-        const passwordHash = await bcrypt.hash("Demo1234", 12);
-        const dobHash = await bcrypt.hash("1995-06-15", 10);
+        const passwordHash = await bcrypt.hash("Demo@123", 12);
+        const dobHash = await bcrypt.hash("2001-01-01", 10);
 
         const user = await prisma.user.create({
           data: {

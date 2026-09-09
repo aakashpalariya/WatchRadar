@@ -7,13 +7,14 @@ async function main() {
   console.log("🌱 Seeding WatchRadar database...");
 
   // Create demo user
-  const passwordHash = await bcrypt.hash("Demo1234", 12);
-  const dobHash = await bcrypt.hash("1995-06-15", 10);
+  const passwordHash = await bcrypt.hash("Demo@123", 12);
+  const dobHash = await bcrypt.hash("2001-01-01", 10);
 
-  const user = await prisma.user.upsert({
-    where: { email: "demo@watchradar.app" },
-    update: {},
-    create: {
+  // Clean up existing demo user data if present
+  await prisma.user.deleteMany({ where: { email: "demo@watchradar.app" } });
+
+  const user = await prisma.user.create({
+    data: {
       email: "demo@watchradar.app",
       passwordHash,
       dobHash,
@@ -480,8 +481,8 @@ async function main() {
   console.log("\n🎬 Seed complete!");
   console.log("Demo login credentials:");
   console.log("  Email: demo@watchradar.app");
-  console.log("  Password: Demo1234");
-  console.log("  DOB (for password reset): 1995-06-15");
+  console.log("  Password: Demo@123");
+  console.log("  DOB (for password reset): 2001-01-01 (01/01/2001)");
 }
 
 main()
