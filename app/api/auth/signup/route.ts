@@ -96,11 +96,12 @@ export async function POST(req: NextRequest) {
     await session.save();
 
     return res;
-  } catch (err) {
+  } catch (err: any) {
     console.error("Signup error:", err);
     return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
+      { error: err?.message || "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
 }
+
