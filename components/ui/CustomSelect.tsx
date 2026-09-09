@@ -19,6 +19,8 @@ interface CustomSelectProps {
   label?: string;
   icon?: React.ReactNode;
   disabled?: boolean;
+  size?: 'sm' | 'md';
+  showCheckmark?: boolean;
 }
 
 export function CustomSelect({
@@ -30,11 +32,21 @@ export function CustomSelect({
   label,
   icon,
   disabled = false,
+  size = 'md',
+  showCheckmark = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const selectedItemRef = useRef<HTMLButtonElement>(null);
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  // Auto-scroll selected item into view when popover opens
+  useEffect(() => {
+    if (isOpen && selectedItemRef.current) {
+      selectedItemRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [isOpen]);
 
   // Close popover on click outside or escape key
   useEffect(() => {
@@ -70,7 +82,11 @@ export function CustomSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full min-h-[42px] px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 transition-all duration-200 text-left bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-primary)] hover:border-[var(--accent)]/50 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-dim)] ${
+        className={`w-full border font-semibold flex items-center justify-between gap-2 transition-all duration-200 text-left bg-[var(--bg-elevated)] border-[var(--border)] text-[var(--text-primary)] hover:border-[var(--accent)]/50 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-dim)] ${
+          size === 'sm'
+            ? 'min-h-[34px] px-2.5 py-1 text-xs rounded-lg'
+            : 'min-h-[42px] px-3.5 py-2 text-xs sm:text-sm rounded-xl'
+        } ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         } ${isOpen ? 'border-[var(--accent)] ring-2 ring-[var(--accent-dim)]' : ''}`}
       >
@@ -100,9 +116,14 @@ export function CustomSelect({
             return (
               <button
                 key={opt.value}
+                ref={isSelected ? selectedItemRef : null}
                 type="button"
                 onClick={() => handleSelect(opt.value)}
-                className={`w-full px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-2 transition-colors text-left ${
+                className={`w-full font-semibold flex items-center justify-between gap-1.5 transition-colors text-left ${
+                  size === 'sm'
+                    ? 'px-2.5 py-1.5 rounded-lg text-xs'
+                    : 'px-3 py-2.5 rounded-xl text-xs sm:text-sm'
+                } ${
                   isSelected
                     ? 'bg-purple-500/20 text-[var(--accent)] font-bold'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]'
@@ -119,7 +140,9 @@ export function CustomSelect({
                     )}
                   </div>
                 </div>
-                {isSelected && <Check className="w-4 h-4 text-[var(--accent)] flex-shrink-0" />}
+                {showCheckmark && isSelected && (
+                  <Check className="w-4 h-4 text-[var(--accent)] flex-shrink-0" />
+                )}
               </button>
             );
           })}

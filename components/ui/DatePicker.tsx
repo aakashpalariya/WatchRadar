@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Sparkles } from 'lucide-react';
+import { CustomSelect, SelectOption } from './CustomSelect';
 
 interface DatePickerProps {
   value?: string; // YYYY-MM-DD format
@@ -17,6 +18,20 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+
+const MONTH_OPTIONS: SelectOption[] = MONTH_NAMES.map((mName, idx) => ({
+  value: String(idx),
+  label: mName,
+}));
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS: SelectOption[] = Array.from(
+  { length: CURRENT_YEAR - 1920 + 6 },
+  (_, i) => CURRENT_YEAR + 4 - i
+).map((y) => ({
+  value: String(y),
+  label: String(y),
+}));
 
 export function DatePicker({
   value = '',
@@ -212,32 +227,26 @@ export function DatePicker({
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-1.5">
-              {/* Month Selector */}
-              <select
-                value={viewMonth}
-                onChange={(e) => setViewMonth(Number(e.target.value))}
-                className="bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg py-1 px-1.5 text-xs font-bold focus:outline-none focus:border-[var(--accent)] cursor-pointer"
-              >
-                {MONTH_NAMES.map((mName, idx) => (
-                  <option key={mName} value={idx} className="bg-[var(--bg-card)] text-[var(--text-primary)]">
-                    {mName}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-1.5 flex-1 justify-center min-w-0">
+              {/* Month CustomSelect */}
+              <div className="w-[115px]">
+                <CustomSelect
+                  options={MONTH_OPTIONS}
+                  value={String(viewMonth)}
+                  onChange={(val) => setViewMonth(parseInt(val, 10))}
+                  size="sm"
+                />
+              </div>
 
-              {/* Year Selector */}
-              <select
-                value={viewYear}
-                onChange={(e) => setViewYear(Number(e.target.value))}
-                className="bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg py-1 px-1.5 text-xs font-bold focus:outline-none focus:border-[var(--accent)] cursor-pointer"
-              >
-                {Array.from({ length: new Date().getFullYear() - 1920 + 5 }, (_, i) => new Date().getFullYear() + 4 - i).map((y) => (
-                  <option key={y} value={y} className="bg-[var(--bg-card)] text-[var(--text-primary)]">
-                    {y}
-                  </option>
-                ))}
-              </select>
+              {/* Year CustomSelect */}
+              <div className="w-[85px]">
+                <CustomSelect
+                  options={YEAR_OPTIONS}
+                  value={String(viewYear)}
+                  onChange={(val) => setViewYear(parseInt(val, 10))}
+                  size="sm"
+                />
+              </div>
             </div>
 
             <button
