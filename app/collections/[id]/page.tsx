@@ -95,17 +95,21 @@ export default function CollectionDetailsPage() {
         body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() }),
       });
 
-      if (res.ok) {
-        const updated = await res.json();
-        setCollection((prev: any) => ({
-          ...prev,
-          name: updated.name,
-          description: updated.description,
-        }));
-        setShowEditModal(false);
+      const updated = await res.json();
+      if (!res.ok) {
+        setEditNameError(updated.error || 'Failed to update collection');
+        return;
       }
+
+      setCollection((prev: any) => ({
+        ...prev,
+        name: updated.name,
+        description: updated.description,
+      }));
+      setShowEditModal(false);
     } catch (err) {
       console.error(err);
+      setEditNameError('An unexpected error occurred. Please try again.');
     } finally {
       setIsUpdating(false);
     }
@@ -259,6 +263,11 @@ export default function CollectionDetailsPage() {
   };
 
   const [cardLayout, setCardLayout] = useState<'vertical' | 'horizontal'>('vertical');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Page size: 9 for cards (horizontal), 10 for posters (vertical)
+  const pageSize = cardLayout === 'horizontal' ? 9 : 10;
+
 
   if (isLoading) {
     return (
@@ -346,7 +355,7 @@ export default function CollectionDetailsPage() {
           <div className="flex bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-0.5 text-xs">
             <button
               type="button"
-              onClick={() => setCardLayout('vertical')}
+              onClick={() => { setCardLayout('vertical'); setCurrentPage(1); }}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 cardLayout === 'vertical'
                   ? 'bg-[var(--accent)] text-white shadow-sm'
@@ -358,7 +367,7 @@ export default function CollectionDetailsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setCardLayout('horizontal')}
+              onClick={() => { setCardLayout('horizontal'); setCurrentPage(1); }}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
                 cardLayout === 'horizontal'
                   ? 'bg-[var(--accent)] text-white shadow-sm'
@@ -372,22 +381,54 @@ export default function CollectionDetailsPage() {
         </div>
       </header>
 
-      {collectionItems.length > 0 ? (
-        <div className={cardLayout === 'horizontal' ? 'grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5' : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'}>
-          {collectionItems.map((item: any) => (
-            <div key={item.id} className="relative group">
-              <MediaCard media={formatMediaItem(item.media)} layout={cardLayout} from={`/collections/${collection.id}`} />
-              <button
-                onClick={() => promptRemoveMedia(item.mediaId, item.media?.title)}
-                className="absolute top-2 right-2 p-2 bg-black/80 rounded-full border border-white/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 z-20"
-                title="Remove from collection"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+      {collectionItems.length > 0 ? (() => {
+        const totalPages = Math.ceil(collectionItems.length / pageSize);
+        const paginatedItems = collectionItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+        return (
+          <>
+            <div className={cardLayout === 'horizontal' ? 'grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5' : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4'}>
+              {paginatedItems.map((item: any) => (
+                <div key={item.id} className="relative group">
+                  <MediaCard media={formatMediaItem(item.media)} layout={cardLayout} from={`/collections/${collection.id}`} />
+                  <button
+                    onClick={() => promptRemoveMedia(item.mediaId, item.media?.title)}
+                    className="absolute top-2 right-2 p-2 bg-black/80 rounded-full border border-white/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 z-20"
+                    title="Remove from collection"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : (
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 mt-8">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs text-[var(--text-muted)] font-semibold px-2">
+                  Page {currentPage} of {totalPages}
+                  <span className="ml-2 text-[var(--text-muted)]/60">· {collectionItems.length} titles</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        );
+      })() : (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-[var(--bg-card)] rounded-2xl border border-[var(--border)]">
           <Film className="w-12 h-12 text-[var(--accent)] opacity-40 mb-4" />
           <h3 className="text-lg font-bold mb-1">This Collection is Empty</h3>
@@ -399,6 +440,8 @@ export default function CollectionDetailsPage() {
           </button>
         </div>
       )}
+
+
 
       {/* Add Titles to Collection Modal */}
       {showAddModal && (
@@ -654,12 +697,13 @@ export default function CollectionDetailsPage() {
                     if (e.target.value.trim()) setEditNameError('');
                   }}
                   placeholder="e.g. Marvel Cinematic Universe"
-                  className={`input ${editNameError ? 'border-red-500 focus:border-red-500' : ''}`}
+                  className={`input ${editNameError ? 'input-error border-red-500' : ''}`}
+                  style={editNameError ? { borderColor: '#ef4444' } : undefined}
                   autoFocus
                 />
                 {editNameError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                    <AlertCircle className="w-3 h-3" /> {editNameError}
+                  <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                    <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {editNameError}
                   </p>
                 )}
               </div>

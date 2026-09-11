@@ -5,15 +5,15 @@ import { BottomNavigation } from "./BottomNavigation";
 import { DesktopSidebar } from "./DesktopSidebar";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
-const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password'];
+const NO_SHELL_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/admin'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = AUTH_PATHS.some(
+  const isNoShellPage = NO_SHELL_PATHS.some(
     (path) => pathname === path || pathname?.startsWith(path)
   );
 
-  if (isAuthPage) {
+  if (isNoShellPage) {
     return (
       <ThemeProvider>
         <div className="w-full min-h-screen">

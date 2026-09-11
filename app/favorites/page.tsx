@@ -34,7 +34,7 @@ export default async function FavoritesPage() {
   }));
 
   return (
-    <main className="min-h-screen pt-5 px-4 pb-28 animate-fade-in font-[var(--font-texturina)] max-w-6xl mx-auto">
+    <main className="min-h-screen pt-5 px-10 pb-28 animate-fade-in font-[var(--font-texturina)] max-w-6xl mx-auto">
       <header className="mb-6 flex items-center gap-2.5">
         <Heart className="w-6 h-6 text-red-500 fill-red-500 flex-shrink-0" />
         <div>

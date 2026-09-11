@@ -3,9 +3,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Filter, SortDesc, Search, Film, Plus } from 'lucide-react';
+import { Search, Film, Plus } from 'lucide-react';
 import MediaCard from '@/components/media/MediaCard';
-import FilterSheet from '@/components/library/FilterSheet';
 import CustomSelect from '@/components/ui/CustomSelect';
 
 const SORT_OPTIONS = [
@@ -16,19 +15,28 @@ const SORT_OPTIONS = [
   { value: 'releaseDate_desc', label: 'Release Date' },
 ];
 
-const TABS = [
-  { id: 'All', label: 'All', icon: '🍿' },
-  { id: 'Movies', label: 'Movies', type: 'MOVIE', icon: '🎬' },
-  { id: 'Series', label: 'Series', type: 'SERIES', icon: '📺' },
-  { id: 'Want to Watch', label: 'Want to Watch', status: 'WANT_TO_WATCH', icon: '⏳' },
-  { id: 'Watching', label: 'Watching', status: 'WATCHING', icon: '▶️' },
-  { id: 'Watched', label: 'Watched', status: 'WATCHED', icon: '✅' },
-  { id: 'Favorites', label: 'Favorites', isFavorite: 'true', icon: '❤️' },
+const STATUS_FILTERS = [
+  { id: 'ALL', label: 'All Statuses', icon: '🍿' },
+  { id: 'UNASSIGNED', label: 'Untagged', icon: '🏷️' },
+  { id: 'WANT_TO_WATCH', label: 'Want to Watch', icon: '⏳' },
+  { id: 'WATCHING', label: 'Watching', icon: '▶️' },
+  { id: 'WATCHED', label: 'Watched', icon: '✅' },
+  { id: 'ON_HOLD', label: 'On Hold', icon: '⏸️' },
+  { id: 'DROPPED', label: 'Dropped', icon: '🛑' },
+];
+
+const TYPE_FILTERS = [
+  { id: 'ALL', label: 'All Types', icon: '📽️' },
+  { id: 'MOVIE', label: 'Movies', icon: '🎬' },
+  { id: 'SERIES', label: 'Series', icon: '📺' },
 ];
 
 function LibraryContent() {
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedType, setSelectedType] = useState('ALL');
+  const [isFavoriteOnly, setIsFavoriteOnly] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [media, setMedia] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,36 +47,31 @@ function LibraryContent() {
   const [cardLayout, setCardLayout] = useState<'horizontal' | 'vertical'>('horizontal');
   const limitPerPage = cardLayout === 'horizontal' ? 9 : 10;
 
-  // Sync activeTab with URL parameters (tab, status, type, isFavorite)
+  // Sync state with URL parameters
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
     const statusParam = searchParams.get('status');
     const typeParam = searchParams.get('type');
     const favParam = searchParams.get('isFavorite');
+    const tabParam = searchParams.get('tab');
+
+    if (statusParam) setSelectedStatus(statusParam);
+    if (typeParam) setSelectedType(typeParam);
+    if (favParam === 'true') setIsFavoriteOnly(true);
 
     if (tabParam) {
-      const matched = TABS.find(
-        (t) =>
-          t.id.toLowerCase() === tabParam.toLowerCase() ||
-          t.id.replace(/\s+/g, '').toLowerCase() === tabParam.replace(/\s+/g, '').toLowerCase()
-      );
-      if (matched) setActiveTab(matched.id);
-    } else if (statusParam) {
-      const matched = TABS.find((t) => t.status === statusParam);
-      if (matched) setActiveTab(matched.id);
-    } else if (typeParam) {
-      const matched = TABS.find((t) => t.type === typeParam);
-      if (matched) setActiveTab(matched.id);
-    } else if (favParam === 'true') {
-      const matched = TABS.find((t) => t.id === 'Favorites');
-      if (matched) setActiveTab(matched.id);
+      const lower = tabParam.toLowerCase();
+      if (lower.includes('movie')) setSelectedType('MOVIE');
+      else if (lower.includes('series') || lower.includes('tv')) setSelectedType('SERIES');
+      else if (lower.includes('want')) setSelectedStatus('WANT_TO_WATCH');
+      else if (lower.includes('watching')) setSelectedStatus('WATCHING');
+      else if (lower.includes('watched')) setSelectedStatus('WATCHED');
+      else if (lower.includes('favorite')) setIsFavoriteOnly(true);
     }
   }, [searchParams]);
 
   const fetchMediaForPage = async (targetPage: number, layout = cardLayout) => {
     setIsLoading(true);
     try {
-      const selectedTab = TABS.find((t) => t.id === activeTab);
       const limit = layout === 'horizontal' ? 9 : 10;
       const params = new URLSearchParams({
         page: targetPage.toString(),
@@ -76,9 +79,9 @@ function LibraryContent() {
         sort,
       });
 
-      if (selectedTab?.type) params.set('type', selectedTab.type);
-      if (selectedTab?.status) params.set('status', selectedTab.status);
-      if (selectedTab?.isFavorite) params.set('isFavorite', 'true');
+      if (selectedStatus !== 'ALL') params.set('status', selectedStatus);
+      if (selectedType !== 'ALL') params.set('type', selectedType);
+      if (isFavoriteOnly) params.set('isFavorite', 'true');
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
       const res = await fetch(`/api/media?${params}`);
@@ -104,7 +107,7 @@ function LibraryContent() {
       fetchMediaForPage(1);
     }, 300);
     return () => clearTimeout(delay);
-  }, [activeTab, searchQuery, sort, cardLayout]);
+  }, [selectedStatus, selectedType, isFavoriteOnly, searchQuery, sort, cardLayout]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== page) {
@@ -113,14 +116,22 @@ function LibraryContent() {
     }
   };
 
+  const resetAllFilters = () => {
+    setSelectedStatus('ALL');
+    setSelectedType('ALL');
+    setIsFavoriteOnly(false);
+    setSearchQuery('');
+    setPage(1);
+  };
+
   return (
     <main className="min-h-screen pt-5 px-4 pb-28 animate-fade-in font-[var(--font-texturina)] text-[var(--text-primary)] max-w-6xl mx-auto">
       <header className="mb-6">
         <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
           <div>
-            <h1 className="page-title">My Library</h1>
+            <h1 className="page-title">My Playlist & Library</h1>
             <p className="page-description">
-              Track and organize your personal watch collection ({totalItems} {totalItems === 1 ? 'title' : 'titles'} · {limitPerPage} per page)
+              Track and organize your personal watch collection ({totalItems} {totalItems === 1 ? 'title' : 'titles'})
             </p>
           </div>
           <div className="flex gap-2 items-center flex-wrap w-full sm:w-auto">
@@ -152,7 +163,7 @@ function LibraryContent() {
               </button>
             </div>
 
-            {/* Sort Dropdown — Expands to fill right side space on mobile */}
+            {/* Sort Dropdown */}
             <div className="flex-1 min-w-[150px] sm:flex-none sm:w-[180px]">
               <CustomSelect
                 options={SORT_OPTIONS}
@@ -164,6 +175,7 @@ function LibraryContent() {
           </div>
         </div>
 
+        {/* Search Bar */}
         <div className="relative mb-4">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none" />
           <input
@@ -175,26 +187,97 @@ function LibraryContent() {
           />
         </div>
 
-        {/* Filter Tab Pills — Multi-line wrap on smaller viewports */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 pb-2">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setActiveTab(tab.id);
-                setPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25 scale-[1.02] border border-purple-400'
-                  : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border)] hover:bg-[var(--bg-elevated)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        {/* 3 Separate Independent Filter Groups */}
+        <div className="space-y-3 pt-2 pb-2 bg-[var(--bg-card)]/40 p-3.5 rounded-2xl border border-[var(--border)]">
+          
+          {/* Group 1: Watch Status */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-[var(--text-muted)] w-20 flex-shrink-0 flex items-center gap-1">
+              📌 Status:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5 flex-1">
+              {STATUS_FILTERS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatus(s.id);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1 ${
+                    selectedStatus === s.id
+                      ? 'bg-purple-600 text-white shadow-md border border-purple-400'
+                      : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{s.icon}</span>
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Group 2: Media Type (Movies vs Series) */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-[var(--text-muted)] w-20 flex-shrink-0 flex items-center gap-1">
+              🎬 Category:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5 flex-1">
+              {TYPE_FILTERS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedType(t.id);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1 ${
+                    selectedType === t.id
+                      ? 'bg-blue-600 text-white shadow-md border border-blue-400'
+                      : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--accent)]/50 hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Group 3: Single Favorites Toggle */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-bold text-[var(--text-muted)] w-20 flex-shrink-0 flex items-center gap-1">
+              ❤️ Quick:
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFavoriteOnly(!isFavoriteOnly);
+                  setPage(1);
+                }}
+                className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                  isFavoriteOnly
+                    ? 'bg-red-500 text-white shadow-md border border-red-400'
+                    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-red-400/50 hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <span>❤️</span>
+                <span>Favorites Only</span>
+              </button>
+
+              {(selectedStatus !== 'ALL' || selectedType !== 'ALL' || isFavoriteOnly || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="px-2.5 py-1 text-xs text-[var(--text-muted)] hover:text-red-400 underline transition-colors cursor-pointer"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+
         </div>
       </header>
 
@@ -213,31 +296,37 @@ function LibraryContent() {
           <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4">
             <Film className="w-8 h-8 text-[var(--accent)] opacity-80" />
           </div>
-          <h3 className="text-lg font-bold mb-1">Your Library is Empty</h3>
+          <h3 className="text-lg font-bold mb-1">No Titles Found</h3>
           <p className="text-xs text-[var(--text-muted)] max-w-sm mb-6 leading-relaxed">
             {searchQuery
-              ? `No titles in your library matched "${searchQuery}".`
-              : activeTab !== 'All'
-              ? `No items found in "${activeTab}".`
-              : 'Start adding movies and TV series to build your ultimate personal WatchRadar.'}
+              ? `No titles matched "${searchQuery}".`
+              : 'No items in your library match the selected filter combination.'}
           </p>
-          <Link
-            href="/search"
-            className="btn btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Search & Add Titles
-          </Link>
+          <div className="flex gap-2">
+            <button
+              onClick={resetAllFilters}
+              className="btn btn-secondary btn-sm"
+            >
+              Reset Filters
+            </button>
+            <Link
+              href="/search"
+              className="btn btn-primary btn-sm flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Add Titles
+            </Link>
+          </div>
         </div>
       ) : (
         <>
-          {/* 3 in one line grid layout for horizontal cards */}
+          {/* Media Grid */}
           <div className={cardLayout === 'horizontal' ? 'grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 mb-8' : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8'}>
             {media.map((item: any) => (
               <MediaCard key={item.id} media={item} layout={cardLayout} />
             ))}
           </div>
 
-          {/* Dynamic Items per Page Pagination Bar */}
+          {/* Pagination Bar */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-[var(--border)]">
               <div className="text-xs text-[var(--text-muted)] font-medium">

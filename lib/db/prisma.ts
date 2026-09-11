@@ -1,27 +1,26 @@
-import { PrismaClient } from "@prisma/client";
-import { getDatabasePath, bootstrapDatabaseFile, ensureDatabaseReady } from "./init";
+import { PrismaClient } from "../prisma-client";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { ensureDatabaseReady } from "./init";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function createPrismaClient(): PrismaClient {
-  bootstrapDatabaseFile();
-  const dbPath = getDatabasePath();
-  const sqliteUrl = `file:${dbPath.replace(/\\/g, "/")}`;
+  const dbUrl = process.env.DATABASE_URL;
 
-  if (!process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith("file:")) {
-    process.env.DATABASE_URL = sqliteUrl;
+  if (!dbUrl || !dbUrl.startsWith("libsql://")) {
+    throw new Error(
+      "[WatchRadar DB] DATABASE_URL must be a Turso libsql:// URL. Please set it in your .env.local file."
+    );
   }
 
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: sqliteUrl,
-      },
-    },
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+  console.log("[WatchRadar DB] Connecting to Turso Cloud database");
+  const adapter = new PrismaLibSql({
+    url: dbUrl,
+    authToken: process.env.TURSO_AUTH_TOKEN,
   });
+  return new PrismaClient({ adapter });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
@@ -35,3 +34,4 @@ export async function initDb(): Promise<void> {
 export { ensureDatabaseReady };
 
 export default prisma;
+

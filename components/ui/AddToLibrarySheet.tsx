@@ -92,7 +92,7 @@ export function AddToLibrarySheet({
   const handleAdded = onSuccess ?? onAdded ?? (() => {});
 
   const [mounted, setMounted] = useState(false);
-  const [status, setStatus] = useState('WANT_TO_WATCH');
+  const [status, setStatus] = useState('UNASSIGNED');
   const [platformIds, setPlatformIds] = useState<string[]>([]);
   const [audioLanguages, setAudioLanguages] = useState<string[]>([]);
   const [subtitleLanguages, setSubtitleLanguages] = useState<string[]>([]);
@@ -112,7 +112,7 @@ export function AddToLibrarySheet({
 
   useEffect(() => {
     if (isSheetOpen && itemTmdbId) {
-      setStatus('WANT_TO_WATCH');
+      setStatus('UNASSIGNED');
       setPlatformIds([]);
       setAudioLanguages([]);
       setSubtitleLanguages([]);
@@ -305,8 +305,8 @@ export function AddToLibrarySheet({
               {/* TMDB Discovered Streaming Platforms */}
               {tmdbDetails?.streamingPlatforms && tmdbDetails.streamingPlatforms.length > 0 && (
                 <div>
-                  <label className="form-label flex items-center gap-1.5 mb-2">
-                    <Tv size={14} className="text-[var(--accent)]" /> Where to Watch (Stream Available)
+                  <label className="form-label mb-2">
+                    Where to Watch (Stream Available)
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {tmdbDetails.streamingPlatforms.map((pName: string) => (
@@ -329,7 +329,7 @@ export function AddToLibrarySheet({
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setStatus(opt.value)}
+                      onClick={() => setStatus(status === opt.value ? 'UNASSIGNED' : opt.value)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                         status === opt.value
                           ? 'bg-purple-500/20 text-[var(--accent)] border-[var(--accent)] shadow-sm'

@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if ((user as any).isActive === false) {
+      return NextResponse.json(
+        { error: "Your account has been deactivated. Please contact the administrator." },
+        { status: 403 }
+      );
+    }
+
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
       return NextResponse.json(

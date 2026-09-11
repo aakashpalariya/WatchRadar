@@ -108,7 +108,7 @@ export default function SearchPage() {
           title: itemTitle,
           posterPath: itemPosterPath,
           type: itemType,
-          status: 'WANT_TO_WATCH',
+          status: 'UNASSIGNED',
           imdbRating: item.imdbRating ?? item.vote_average ?? null,
           genres: item.genres || [],
         }),

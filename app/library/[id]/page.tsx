@@ -12,6 +12,10 @@ import EpisodeProgress from '@/components/series/EpisodeProgress';
 import MovieProgressTracker from '@/components/media/MovieProgressTracker';
 import BackButton from '@/components/shared/BackButton';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+
 export default async function MediaDetailsPage({
   params,
   searchParams,
@@ -57,6 +61,7 @@ export default async function MediaDetailsPage({
   const platformIds = media.platforms.map(p => p.platform.id);
   const statusColor = getStatusColor(media.status);
   const statusLabel = getStatusLabel(media.status);
+  const mediaWatchedDate = media.watchedAt ? new Date(media.watchedAt).toISOString().split('T')[0] : null;
 
   return (
     <main className="min-h-screen pb-28 animate-fade-in font-[var(--font-texturina)] bg-[var(--bg-base)] text-[var(--text-primary)]">
@@ -179,6 +184,7 @@ export default async function MediaDetailsPage({
             totalEpisodes={media.totalEpisodes}
             watchedEpisodes={media.watchedEpisodes || 0}
             progressPercentage={media.progressPercentage || 0}
+            initialWatchedAt={mediaWatchedDate}
             seasons={(media.seasons || []).map((s: any) => ({
               seasonNumber: s.seasonNumber,
               episodes: (s.episodes || []).map((e: any) => ({
@@ -200,6 +206,7 @@ export default async function MediaDetailsPage({
             initialProgress={media.progressPercentage || (media.status === 'WATCHED' ? 100 : 0)}
             runtime={media.runtime}
             initialStatus={media.status}
+            initialWatchedAt={mediaWatchedDate}
           />
         )}
 
@@ -214,6 +221,7 @@ export default async function MediaDetailsPage({
           initialSubtitleLanguages={subLangs}
           initialPlatformIds={platformIds}
           allPlatforms={allPlatforms}
+          initialWatchedAt={mediaWatchedDate}
         />
       </div>
     </main>

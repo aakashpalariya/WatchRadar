@@ -1,0 +1,340 @@
+// WatchRadar Prisma Schema
+// SQLite database with full normalized schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/prisma-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  dobHash      String // bcrypt hash of DOB (YYYY-MM-DD) for password reset
+  dob          String? // DOB string (YYYY-MM-DD) for profile display
+  name         String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  media              Media[]
+  collections        Collection[]
+  tags               Tag[]
+  watchHistory       WatchHistory[]
+  streamingPlatforms StreamingPlatform[]
+  subscriptions      Subscription[]
+  appSettings        AppSettings?
+
+  @@index([email])
+}
+
+// ─────────────────────────────────────────
+// Media (Movies & Series)
+// ─────────────────────────────────────────
+
+model Media {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tmdbId        Int?
+  imdbId        String?
+  title         String
+  originalTitle String?
+  type          MediaType // MOVIE | SERIES
+  description   String?
+  posterPath    String?
+  backdropPath  String?
+  releaseDate   DateTime?
+  runtime       Int? // minutes (for movies) or avg episode runtime (for series)
+
+  // Series-specific
+  totalSeasons       Int?
+  totalEpisodes      Int?
+  currentSeason      Int   @default(1)
+  currentEpisode     Int   @default(0)
+  watchedEpisodes    Int   @default(0)
+  progressPercentage Float @default(0)
+
+  // IMDb Rating (via OMDb)
+  imdbRating          Float?
+  imdbVoteCount       Int?
+  imdbRatingUpdatedAt DateTime?
+
+  // Personal data
+  status       WatchStatus @default(UNASSIGNED)
+  myRating     Float? // 1-10
+  myReview     String?
+  isFavorite   Boolean     @default(false)
+  notes        String?
+  watchedAt    DateTime? // for movies: when watched; for series: last episode watched
+  rewatchCount Int         @default(0)
+
+  // Cast / crew
+  director String?
+  cast     String? // JSON array stored as string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  genres       MediaGenre[]
+  languages    MediaLanguage[]
+  platforms    MediaStreamingPlatform[]
+  mediaTags    MediaTag[]
+  collections  CollectionMedia[]
+  seasons      Season[]
+  watchHistory WatchHistory[]
+
+  @@unique([userId, tmdbId])
+  @@unique([userId, imdbId])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([isFavorite])
+  @@index([createdAt])
+  @@index([title])
+}
+
+enum MediaType {
+  MOVIE
+  SERIES
+}
+
+enum WatchStatus {
+  UNASSIGNED
+  WANT_TO_WATCH
+  WATCHING
+  WATCHED
+  ON_HOLD
+  DROPPED
+}
+
+// ─────────────────────────────────────────
+// Genres
+// ─────────────────────────────────────────
+
+model Genre {
+  id     String       @id @default(cuid())
+  name   String       @unique
+  tmdbId Int?         @unique
+  media  MediaGenre[]
+}
+
+model MediaGenre {
+  id      String @id @default(cuid())
+  mediaId String
+  genreId String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, genreId])
+}
+
+// ─────────────────────────────────────────
+// Languages
+// ─────────────────────────────────────────
+
+model Language {
+  id    String          @id @default(cuid())
+  name  String          @unique
+  code  String?         @unique
+  media MediaLanguage[]
+}
+
+model MediaLanguage {
+  id         String       @id @default(cuid())
+  mediaId    String
+  languageId String
+  type       LanguageType // AUDIO | SUBTITLE
+  media      Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  language   Language     @relation(fields: [languageId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, languageId, type])
+}
+
+enum LanguageType {
+  AUDIO
+  SUBTITLE
+}
+
+// ─────────────────────────────────────────
+// Streaming Platforms
+// ─────────────────────────────────────────
+
+model StreamingPlatform {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  logoUrl   String?
+  color     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  media         MediaStreamingPlatform[]
+  subscriptions Subscription[]
+
+  @@unique([userId, name])
+}
+
+model MediaStreamingPlatform {
+  id         String            @id @default(cuid())
+  mediaId    String
+  platformId String
+  media      Media             @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  platform   StreamingPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, platformId])
+}
+
+// ─────────────────────────────────────────
+// Subscriptions
+// ─────────────────────────────────────────
+
+model Subscription {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformId String
+  platform   StreamingPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+
+  @@unique([userId, platformId])
+}
+
+// ─────────────────────────────────────────
+// Tags
+// ─────────────────────────────────────────
+
+model Tag {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String?
+  createdAt DateTime   @default(now())
+  media     MediaTag[]
+
+  @@unique([userId, name])
+}
+
+model MediaTag {
+  id      String @id @default(cuid())
+  mediaId String
+  tagId   String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, tagId])
+}
+
+// ─────────────────────────────────────────
+// Collections
+// ─────────────────────────────────────────
+
+model Collection {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  coverPath   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  media       CollectionMedia[]
+
+  @@unique([userId, name])
+}
+
+model CollectionMedia {
+  id           String     @id @default(cuid())
+  collectionId String
+  mediaId      String
+  order        Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  media        Media      @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, mediaId])
+}
+
+// ─────────────────────────────────────────
+// Series Seasons & Episodes
+// ─────────────────────────────────────────
+
+model Season {
+  id           String    @id @default(cuid())
+  mediaId      String
+  media        Media     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  seasonNumber Int
+  name         String?
+  overview     String?
+  episodeCount Int       @default(0)
+  airDate      DateTime?
+  posterPath   String?
+  episodes     Episode[]
+
+  @@unique([mediaId, seasonNumber])
+}
+
+model Episode {
+  id            String         @id @default(cuid())
+  seasonId      String
+  season        Season         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  episodeNumber Int
+  name          String?
+  overview      String?
+  airDate       DateTime?
+  runtime       Int? // minutes
+  stillPath     String?
+  isWatched     Boolean        @default(false)
+  watchedAt     DateTime?
+  watchHistory  WatchHistory[]
+
+  @@unique([seasonId, episodeNumber])
+}
+
+// ─────────────────────────────────────────
+// Watch History
+// ─────────────────────────────────────────
+
+model WatchHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  episodeId String?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  watchedAt DateTime @default(now())
+  notes     String?
+
+  @@index([userId])
+  @@index([mediaId])
+  @@index([watchedAt])
+}
+
+// ─────────────────────────────────────────
+// App Settings (per-user)
+// ─────────────────────────────────────────
+
+model AppSettings {
+  id            String @id @default(cuid())
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme         String @default("dark") // dark | light | system
+  defaultView   String @default("grid") // grid | list
+  defaultSort   String @default("createdAt_desc")
+  defaultFilter String @default("{}") // JSON string of default filters
+}

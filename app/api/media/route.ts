@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       totalSeasons: m.totalSeasons,
       totalEpisodes: m.totalEpisodes,
       watchedEpisodes: m.watchedEpisodes,
-      progressPercentage: m.status === 'WATCHED' ? 100 : (m.status === 'WANT_TO_WATCH' ? 0 : (m.progressPercentage ?? 0)),
+      progressPercentage: m.progressPercentage ?? (m.status === 'WATCHED' ? 100 : 0),
       createdAt: m.createdAt,
       genres: m.genres.map(g => g.genre.name),
       platforms: m.platforms.map(p => ({ id: p.platform.id, name: p.platform.name, color: p.platform.color })),
@@ -236,10 +236,12 @@ export async function POST(request: NextRequest) {
     let imdbVoteCount: number | null = null;
 
     // Fetch rating from OMDb using IMDb ID or title + year fallback
-    const ratingInfo = await fetchIMDbRating(imdbId, title, releaseYear);
-    if (ratingInfo.imdbRating) {
-      imdbRating = ratingInfo.imdbRating;
-      imdbVoteCount = ratingInfo.imdbVoteCount;
+    if (!imdbRating) {
+      const ratingInfo = await fetchIMDbRating(imdbId, title, releaseYear);
+      if (ratingInfo.imdbRating) {
+        imdbRating = ratingInfo.imdbRating;
+        imdbVoteCount = ratingInfo.imdbVoteCount;
+      }
     }
 
     // Fallback to TMDB rating if OMDb rating is null
@@ -248,7 +250,8 @@ export async function POST(request: NextRequest) {
       imdbVoteCount = tmdbVoteCount;
     }
 
-    const initialStatus = status || 'WANT_TO_WATCH';
+    const validStatuses = ['UNASSIGNED', 'WANT_TO_WATCH', 'WATCHING', 'WATCHED', 'ON_HOLD', 'DROPPED'];
+    const initialStatus = validStatuses.includes(status) ? status : 'UNASSIGNED';
     let initialProgress = 0;
     let initialWatchedEpisodes = 0;
     let initialWatchedAt: Date | null = null;

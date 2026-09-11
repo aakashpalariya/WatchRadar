@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../lib/prisma-client"
 }
 
 datasource db {
@@ -19,7 +20,9 @@ model User {
   email        String   @unique
   passwordHash String
   dobHash      String   // bcrypt hash of DOB (YYYY-MM-DD) for password reset
+  dob          String?  // DOB string (YYYY-MM-DD) for profile display
   name         String?
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -69,7 +72,7 @@ model Media {
   imdbRatingUpdatedAt DateTime?
 
   // Personal data
-  status              WatchStatus @default(WANT_TO_WATCH)
+  status              WatchStatus @default(UNASSIGNED)
   myRating            Float?      // 1-10
   myReview            String?
   isFavorite          Boolean     @default(false)
@@ -109,6 +112,7 @@ enum MediaType {
 }
 
 enum WatchStatus {
+  UNASSIGNED
   WANT_TO_WATCH
   WATCHING
   WATCHED

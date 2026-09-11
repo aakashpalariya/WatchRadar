@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 import prisma from '@/lib/db/prisma';
@@ -45,11 +46,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (progressPercentage >= 100) {
       status = 'WATCHED';
       progressPercentage = 100;
-      watchedAt = new Date();
-    } else if (progressPercentage > 0 && (status === 'WANT_TO_WATCH' || status === 'WATCHED')) {
+      watchedAt = body.watchedAt ? new Date(body.watchedAt) : (media.watchedAt || new Date());
+      if (media.type === 'SERIES') {
+        await prisma.episode.updateMany({
+          where: { season: { mediaId } },
+          data: { isWatched: true, watchedAt: watchedAt }
+        }).catch(() => {});
+      }
+    } else if (progressPercentage > 0) {
       status = 'WATCHING';
       watchedAt = null;
-    } else if (progressPercentage === 0 && status === 'WATCHED') {
+    } else if (progressPercentage === 0) {
       status = 'WANT_TO_WATCH';
       watchedAt = null;
     }
@@ -73,6 +80,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         watchedAt: new Date()
       }
     });
+
+    try {
+      revalidatePath(`/library/${mediaId}`);
+      revalidatePath('/library');
+      revalidatePath('/stats');
+      revalidatePath('/favorites');
+      revalidatePath('/history');
+    } catch {}
 
     return NextResponse.json(updated);
   } catch (error) {

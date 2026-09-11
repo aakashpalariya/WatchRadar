@@ -75,6 +75,7 @@ export default function SignupPage() {
     handleSubmit,
     control,
     watch,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<SignupForm>({
     resolver: zodResolver(SignupSchema),
@@ -97,7 +98,18 @@ export default function SignupPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setServerError(json.error ?? "Sign up failed");
+        const errMsg = json.error ?? "Sign up failed";
+        if (errMsg.toLowerCase().includes("email")) {
+          setError("email", { type: "manual", message: errMsg });
+        } else if (errMsg.toLowerCase().includes("password")) {
+          setError("password", { type: "manual", message: errMsg });
+        } else if (errMsg.toLowerCase().includes("name")) {
+          setError("name", { type: "manual", message: errMsg });
+        } else if (errMsg.toLowerCase().includes("date") || errMsg.toLowerCase().includes("dob")) {
+          setError("dob", { type: "manual", message: errMsg });
+        } else {
+          setServerError(errMsg);
+        }
         return;
       }
       router.push("/");

@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
         email,
         passwordHash,
         dobHash,
+        dob,
         name,
         appSettings: {
           create: {

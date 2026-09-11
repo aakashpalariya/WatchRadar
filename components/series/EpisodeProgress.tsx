@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Check, Minus, Plus, Tv, Sparkles, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, ChevronUp, Check, Minus, Plus, Tv, Sparkles, CheckCircle2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils/format';
 import { useRouter } from 'next/navigation';
+import { getEpisodeWatchedMap, saveEpisodeWatched, saveMediaOverride, getMediaOverride } from '@/lib/utils/storage';
+import DatePicker from '@/components/ui/DatePicker';
 
 interface Episode {
   id: string;
@@ -28,6 +30,7 @@ interface EpisodeProgressProps {
   watchedEpisodes: number;
   progressPercentage: number;
   seasons: Season[];
+  initialWatchedAt?: string | null;
 }
 
 export default function EpisodeProgress({
@@ -38,6 +41,7 @@ export default function EpisodeProgress({
   watchedEpisodes: initWatched,
   progressPercentage: initProgress,
   seasons: initSeasons,
+  initialWatchedAt,
 }: EpisodeProgressProps) {
   const router = useRouter();
   const [seasons, setSeasons] = useState<Season[]>(initSeasons || []);
@@ -45,8 +49,39 @@ export default function EpisodeProgress({
   const [currentSeason, setCurrentSeason] = useState(initSeason || 1);
   const [currentEpisode, setCurrentEpisode] = useState(initEpisode || 1);
   const [watchedCount, setWatchedCount] = useState(initWatched || 0);
+  const [watchedDate, setWatchedDate] = useState<string>(
+    initialWatchedAt ? new Date(initialWatchedAt).toISOString().split('T')[0] : (initProgress >= 100 ? new Date().toISOString().split('T')[0] : '')
+  );
   const [isUpdating, setIsUpdating] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+
+  // Hydrate from localStorage on client mount
+  useEffect(() => {
+    if (typeof window === 'undefined' || !mediaId) return;
+
+    const storedMap = getEpisodeWatchedMap(mediaId);
+    if (Object.keys(storedMap).length > 0) {
+      let calcWatched = 0;
+      setSeasons((prevSeasons) =>
+        prevSeasons.map((s) => ({
+          ...s,
+          episodes: s.episodes.map((e) => {
+            const key = `S${s.seasonNumber}_E${e.episodeNumber}`;
+            const isWatched = storedMap[key] !== undefined ? storedMap[key] : e.watched;
+            if (isWatched) calcWatched++;
+            return { ...e, watched: isWatched };
+          }),
+        }))
+      );
+      setWatchedCount(calcWatched);
+    }
+
+    const override = getMediaOverride(mediaId);
+    if (override) {
+      if (override.currentSeason) setCurrentSeason(override.currentSeason);
+      if (override.currentEpisode) setCurrentEpisode(override.currentEpisode);
+    }
+  }, [mediaId]);
 
   const totalEps = totalEpisodes || seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0) || 1;
   const currentProgress = Math.min(100, Math.max(0, Math.round((watchedCount / totalEps) * 100)));
@@ -59,43 +94,141 @@ export default function EpisodeProgress({
   const toggleEpisode = async (seasonNum: number, episodeNum: number, currentState: boolean) => {
     const newState = !currentState;
 
+    // Save to localStorage immediately
+    saveEpisodeWatched(mediaId, seasonNum, episodeNum, newState);
+
     // Optimistic UI update
+    let newWatchedCount = 0;
     setSeasons((prev) =>
       prev.map((s) => {
-        if (s.seasonNumber === seasonNum) {
-          return {
-            ...s,
-            episodes: s.episodes.map((e) =>
-              e.episodeNumber === episodeNum ? { ...e, watched: newState } : e
-            ),
-          };
-        }
-        return s;
+        const updatedEpisodes = s.episodes.map((e) => {
+          const isW = s.seasonNumber === seasonNum && e.episodeNumber === episodeNum ? newState : e.watched;
+          if (isW) newWatchedCount++;
+          return { ...e, watched: isW };
+        });
+        return { ...s, episodes: updatedEpisodes };
       })
     );
 
-    const newWatchedCount = newState ? watchedCount + 1 : Math.max(0, watchedCount - 1);
     setWatchedCount(newWatchedCount);
+
+    const calcProgress = Math.min(100, Math.max(0, Math.round((newWatchedCount / totalEps) * 100)));
+    const newStatus = calcProgress >= 100 ? 'WATCHED' : newWatchedCount > 0 ? 'WATCHING' : 'WANT_TO_WATCH';
+
+    let nextWatchedDate = watchedDate;
+    if (calcProgress >= 100) {
+      if (!nextWatchedDate) {
+        nextWatchedDate = new Date().toISOString().split('T')[0];
+        setWatchedDate(nextWatchedDate);
+      }
+    } else {
+      nextWatchedDate = '';
+      setWatchedDate('');
+    }
+
+    saveMediaOverride(mediaId, {
+      progressPercentage: calcProgress,
+      watchedEpisodes: newWatchedCount,
+      currentSeason: newState ? seasonNum : currentSeason,
+      currentEpisode: newState ? episodeNum : currentEpisode,
+      status: newStatus,
+      watchedAt: nextWatchedDate || null,
+    });
 
     if (newState) {
       setCurrentSeason(seasonNum);
       setCurrentEpisode(episodeNum);
     }
 
+    showToast(newState ? `S${seasonNum} E${episodeNum} marked watched ✓` : `S${seasonNum} E${episodeNum} unmarked`);
+
     try {
       setIsUpdating(true);
-      const res = await fetch(`/api/media/${mediaId}/episode`, {
+      await fetch(`/api/media/${mediaId}/episode`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seasonNumber: seasonNum, episodeNumber: episodeNum, isWatched: newState }),
+        body: JSON.stringify({
+          seasonNumber: seasonNum,
+          episodeNumber: episodeNum,
+          isWatched: newState,
+          watchedAt: nextWatchedDate || null,
+        }),
       });
-
-      if (res.ok) {
-        showToast(newState ? `S${seasonNum} E${episodeNum} marked watched ✓` : `S${seasonNum} E${episodeNum} unmarked`);
-        router.refresh();
-      }
+      router.refresh();
     } catch (error) {
       console.error('Error toggling episode:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDateChange = async (newDateStr: string) => {
+    setWatchedDate(newDateStr);
+    saveMediaOverride(mediaId, {
+      watchedAt: newDateStr,
+      status: 'WATCHED',
+      progressPercentage: 100,
+    });
+    try {
+      await fetch(`/api/media/${mediaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          watchedAt: newDateStr,
+          status: 'WATCHED',
+        }),
+      });
+      router.refresh();
+    } catch (err) {
+      console.error('Failed to save watched date:', err);
+    }
+  };
+
+  const markAllEpisodesWatched = async (setAllWatched: boolean) => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    let newCount = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nextWatchedDate = setAllWatched ? (watchedDate || todayStr) : '';
+
+    setSeasons((prev) =>
+      prev.map((s) => ({
+        ...s,
+        episodes: s.episodes.map((e) => {
+          saveEpisodeWatched(mediaId, s.seasonNumber, e.episodeNumber, setAllWatched);
+          if (setAllWatched) newCount++;
+          return { ...e, watched: setAllWatched };
+        }),
+      }))
+    );
+
+    setWatchedCount(newCount);
+    setWatchedDate(nextWatchedDate);
+
+    const calcProgress = setAllWatched ? 100 : 0;
+    const newStatus = setAllWatched ? 'WATCHED' : 'WANT_TO_WATCH';
+
+    saveMediaOverride(mediaId, {
+      progressPercentage: calcProgress,
+      watchedEpisodes: newCount,
+      status: newStatus,
+      watchedAt: nextWatchedDate || null,
+    });
+
+    showToast(setAllWatched ? 'All episodes marked watched! 🎉' : 'All episodes unmarked');
+
+    try {
+      await fetch(`/api/media/${mediaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          watchedAt: nextWatchedDate || null,
+        }),
+      });
+      router.refresh();
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsUpdating(false);
     }
@@ -170,6 +303,22 @@ export default function EpisodeProgress({
               </span>
             )}
             
+            {/* Mark All Complete Button */}
+            <button
+              type="button"
+              onClick={() => markAllEpisodesWatched(currentProgress < 100)}
+              disabled={isUpdating}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                currentProgress >= 100
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border)] hover:border-[var(--accent)]/50 hover:text-[var(--accent)]'
+              }`}
+              title={currentProgress >= 100 ? 'Mark all episodes as unwatched' : 'Mark all episodes as watched'}
+            >
+              <Check className="w-3.5 h-3.5" />
+              {currentProgress >= 100 ? 'All Completed ✓' : 'Mark All Complete'}
+            </button>
+
             {/* Stepper Controls */}
             <div className="flex items-center gap-1 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-xl p-1 shadow-inner">
               <button
@@ -210,6 +359,25 @@ export default function EpisodeProgress({
             />
           </div>
         </div>
+
+        {/* Date Watched Picker when All Episodes Complete */}
+        {currentProgress >= 100 && (
+          <div className="mt-4 pt-3 border-t border-[var(--border)] animate-fade-in">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <DatePicker
+                  label="Date Series Completed"
+                  value={watchedDate}
+                  onChange={(d) => handleDateChange(d)}
+                  placeholder="Select completion date..."
+                />
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] self-end pb-2 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-[var(--accent)]" /> Auto-filled today's date. Click to change.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Season Accordions */}

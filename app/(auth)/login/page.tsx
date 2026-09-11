@@ -19,6 +19,23 @@ export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [clickCount, setClickCount] = useState(0);
+
+  const handleLogoClick = () => {
+    setClickCount((prev) => {
+      const nextCount = prev + 1;
+      if (nextCount >= 5) {
+        router.push("/admin");
+        return 0;
+      }
+      return nextCount;
+    });
+
+    // Auto-reset click count if inactive for 2.5 seconds
+    setTimeout(() => {
+      setClickCount(0);
+    }, 2500);
+  };
 
   const {
     register,
@@ -54,6 +71,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div
+            onClick={handleLogoClick}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -64,6 +82,8 @@ export default function LoginPage() {
               background: "linear-gradient(135deg, #a855f7, #7c3aed)",
               boxShadow: "0 0 30px rgba(168,85,247,0.4)",
               marginBottom: "16px",
+              cursor: "pointer",
+              userSelect: "none",
             }}
           >
             <Radar size={32} color="white" />

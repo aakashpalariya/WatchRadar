@@ -57,6 +57,7 @@ export function formatProgress(watched: number, total: number): string {
 
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
+    UNASSIGNED: "Untagged",
     WANT_TO_WATCH: "Want to Watch",
     WATCHING: "Watching",
     WATCHED: "Watched",
@@ -68,6 +69,7 @@ export function getStatusLabel(status: string): string {
 
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
+    UNASSIGNED: "text-[var(--text-muted)] bg-[var(--bg-elevated)] border-[var(--border)]",
     WANT_TO_WATCH: "text-blue-600 dark:text-blue-400 bg-blue-500/15 border-blue-500/30",
     WATCHING: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
     WATCHED: "text-violet-600 dark:text-violet-400 bg-violet-500/15 border-violet-500/30",

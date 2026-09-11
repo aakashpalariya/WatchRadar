@@ -29,6 +29,7 @@ export async function fetchIMDbRating(
 
       const res = await fetch(url.toString(), {
         next: { revalidate: 86400 }, // cache 24h
+        signal: AbortSignal.timeout(2500),
       });
 
       if (res.ok) {
@@ -57,6 +58,7 @@ export async function fetchIMDbRating(
 
       const res = await fetch(url.toString(), {
         next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(2500),
       });
 
       if (res.ok) {

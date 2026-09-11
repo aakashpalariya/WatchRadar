@@ -1,14 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { Play, Check, Clock, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Play, Check, Clock, Sparkles, Calendar } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { saveMediaOverride, getMediaOverride } from '@/lib/utils/storage';
+import DatePicker from '@/components/ui/DatePicker';
 
 interface MovieProgressTrackerProps {
   mediaId: string;
   initialProgress: number;
   runtime?: number | null;
   initialStatus: string;
+  initialWatchedAt?: string | null;
 }
 
 export default function MovieProgressTracker({
@@ -16,34 +19,76 @@ export default function MovieProgressTracker({
   initialProgress,
   runtime,
   initialStatus,
+  initialWatchedAt,
 }: MovieProgressTrackerProps) {
   const router = useRouter();
   const [progress, setProgress] = useState<number>(initialProgress || (initialStatus === 'WATCHED' ? 100 : 0));
+  const [watchedDate, setWatchedDate] = useState<string>(
+    initialWatchedAt ? new Date(initialWatchedAt).toISOString().split('T')[0] : (initialStatus === 'WATCHED' ? new Date().toISOString().split('T')[0] : '')
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const saveProgress = async (newProgress: number) => {
+  useEffect(() => {
+    if (typeof window === 'undefined' || !mediaId) return;
+    const override = getMediaOverride(mediaId);
+    if (override) {
+      if (override.progressPercentage !== undefined) {
+        setProgress(override.progressPercentage);
+      }
+      if (override.watchedAt !== undefined && override.watchedAt !== null) {
+        setWatchedDate(override.watchedAt);
+      }
+    }
+  }, [mediaId]);
+
+  const saveProgress = async (newProgress: number, customWatchedDate?: string) => {
     setProgress(newProgress);
     setIsSaving(true);
     setSaveSuccess(false);
 
+    let nextWatchedDate = customWatchedDate !== undefined ? customWatchedDate : watchedDate;
+    if (newProgress >= 100) {
+      if (!nextWatchedDate) {
+        nextWatchedDate = new Date().toISOString().split('T')[0];
+        setWatchedDate(nextWatchedDate);
+      }
+    } else {
+      nextWatchedDate = '';
+      setWatchedDate('');
+    }
+
+    const calcStatus = newProgress >= 100 ? 'WATCHED' : newProgress > 0 ? 'WATCHING' : 'WANT_TO_WATCH';
+    saveMediaOverride(mediaId, {
+      progressPercentage: newProgress,
+      status: calcStatus,
+      watchedEpisodes: newProgress >= 100 ? 1 : 0,
+      watchedAt: nextWatchedDate || null,
+    });
+
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2000);
+
     try {
-      const res = await fetch(`/api/media/${mediaId}/progress`, {
+      await fetch(`/api/media/${mediaId}/progress`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ progressPercentage: newProgress }),
+        body: JSON.stringify({
+          progressPercentage: newProgress,
+          watchedAt: nextWatchedDate || null,
+        }),
       });
-
-      if (res.ok) {
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-        router.refresh();
-      }
+      router.refresh();
     } catch (err) {
       console.error('Failed to save movie progress:', err);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDateChange = (newDateStr: string) => {
+    setWatchedDate(newDateStr);
+    saveProgress(progress >= 100 ? progress : 100, newDateStr);
   };
 
   const minutesWatched = runtime ? Math.round((progress / 100) * runtime) : null;
@@ -132,6 +177,25 @@ export default function MovieProgressTracker({
           </button>
         ))}
       </div>
+
+      {/* Date Watched Picker when 100% Watched */}
+      {progress >= 100 && (
+        <div className="mt-4 pt-3 border-t border-[var(--border)] animate-fade-in">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <DatePicker
+                label="Date Watched"
+                value={watchedDate}
+                onChange={(d) => handleDateChange(d)}
+                placeholder="Select date watched..."
+              />
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)] self-end pb-2 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-[var(--accent)]" /> Auto-filled today's date. Click to change.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

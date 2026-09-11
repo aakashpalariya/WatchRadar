@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 import prisma from '@/lib/db/prisma';
@@ -54,11 +55,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (watchedCount === allEpisodesCount && allEpisodesCount > 0) {
       status = 'WATCHED';
-      mediaWatchedAt = new Date();
-    } else if (watchedCount > 0 && status === 'WANT_TO_WATCH') {
+      mediaWatchedAt = body.watchedAt ? new Date(body.watchedAt) : (media.watchedAt || new Date());
+    } else if (watchedCount > 0) {
       status = 'WATCHING';
-    } else if (watchedCount < allEpisodesCount && status === 'WATCHED') {
-      status = 'WATCHING';
+      mediaWatchedAt = null;
+    } else if (watchedCount === 0) {
+      status = 'WANT_TO_WATCH';
       mediaWatchedAt = null;
     }
 
@@ -92,6 +94,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       });
     }
+
+    try {
+      revalidatePath(`/library/${mediaId}`);
+      revalidatePath('/library');
+      revalidatePath('/stats');
+      revalidatePath('/favorites');
+      revalidatePath('/history');
+    } catch {}
 
     return NextResponse.json({
       watchedEpisodes: watchedCount,

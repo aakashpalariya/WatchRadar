@@ -340,12 +340,13 @@ export default function SettingsPage() {
                   setName(e.target.value);
                   if (e.target.value.trim()) setNameError('');
                 }}
-                className={`input ${nameError ? 'border-red-500 focus:border-red-500' : ''}`}
+                className={`input ${nameError ? 'input-error border-red-500' : ''}`}
+                style={nameError ? { borderColor: '#ef4444' } : undefined}
                 placeholder="Your Name"
               />
               {nameError && (
-                <p className="text-[11px] text-red-400 mt-1.5 flex items-center gap-1 font-semibold">
-                  <AlertCircle className="w-3 h-3" /> {nameError}
+                <p className="text-[11px] mt-1.5 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                  <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {nameError}
                 </p>
               )}
             </div>
@@ -441,9 +442,16 @@ export default function SettingsPage() {
 
           <form onSubmit={handleChangePassword} className="space-y-3">
             {passwordError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{passwordError}</span>
+              <div
+                className="p-3 rounded-lg text-xs flex items-center gap-2 font-medium"
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  color: '#ef4444',
+                }}
+              >
+                <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#ef4444' }} />
+                <span style={{ color: '#ef4444' }}>{passwordError}</span>
               </div>
             )}
             {passwordSuccess && (
@@ -464,12 +472,13 @@ export default function SettingsPage() {
                   setCurrentPassword(e.target.value);
                   if (e.target.value) setCurrentPasswordError('');
                 }}
-                className={`input ${currentPasswordError ? 'border-red-500 focus:border-red-500' : ''}`}
+                className={`input ${currentPasswordError ? 'input-error border-red-500' : ''}`}
+                style={currentPasswordError ? { borderColor: '#ef4444' } : undefined}
                 placeholder="••••••••"
               />
               {currentPasswordError && (
-                <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                  <AlertCircle className="w-3 h-3" /> {currentPasswordError}
+                <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                  <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {currentPasswordError}
                 </p>
               )}
             </div>
@@ -485,12 +494,13 @@ export default function SettingsPage() {
                   setNewPassword(e.target.value);
                   if (e.target.value.length >= 8) setNewPasswordError('');
                 }}
-                className={`input ${newPasswordError ? 'border-red-500 focus:border-red-500' : ''}`}
+                className={`input ${newPasswordError ? 'input-error border-red-500' : ''}`}
+                style={newPasswordError ? { borderColor: '#ef4444' } : undefined}
                 placeholder="••••••••"
               />
               {newPasswordError && (
-                <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                  <AlertCircle className="w-3 h-3" /> {newPasswordError}
+                <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                  <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {newPasswordError}
                 </p>
               )}
             </div>
@@ -506,12 +516,13 @@ export default function SettingsPage() {
                   setConfirmPassword(e.target.value);
                   if (e.target.value === newPassword) setConfirmPasswordError('');
                 }}
-                className={`input ${confirmPasswordError ? 'border-red-500 focus:border-red-500' : ''}`}
+                className={`input ${confirmPasswordError ? 'input-error border-red-500' : ''}`}
+                style={confirmPasswordError ? { borderColor: '#ef4444' } : undefined}
                 placeholder="••••••••"
               />
               {confirmPasswordError && (
-                <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                  <AlertCircle className="w-3 h-3" /> {confirmPasswordError}
+                <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                  <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {confirmPasswordError}
                 </p>
               )}
             </div>

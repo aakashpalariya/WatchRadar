@@ -33,7 +33,7 @@ WatchRadar is a production-quality, mobile-first PWA for managing your personal 
 | Styling | Tailwind CSS v4 + Custom CSS |
 | UI Components | shadcn/ui + Custom |
 | Font | Google Fonts — Texturina |
-| Database | SQLite |
+| Database | Turso (libsql) |
 | ORM | Prisma |
 | Auth | iron-session + bcryptjs |
 | Forms | React Hook Form + Zod |
@@ -74,7 +74,8 @@ cp .env.example .env.local
 ```
 
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="libsql://your-db-name.turso.io"
+TURSO_AUTH_TOKEN="your_turso_auth_token"
 TMDB_API_KEY="your_tmdb_api_key"
 OMDB_API_KEY="your_omdb_api_key"
 SESSION_SECRET="your-secret-at-least-32-chars-long"
@@ -223,11 +224,11 @@ prisma/
 
 ## 🔒 Privacy & Data
 
-All data is stored **locally in SQLite** on your machine. Nothing is sent to external servers except:
+All data is stored in your **Turso (libsql) database**. Nothing is sent to external servers except:
 - TMDB (for movie/series metadata searches) — your search queries only
 - OMDb (for IMDb ratings) — IMDb IDs only
 
-Your personal watchlist, ratings, reviews, and notes never leave your device.
+Your personal watchlist, ratings, reviews, and notes are stored privately in your own Turso database.
 
 ---
 

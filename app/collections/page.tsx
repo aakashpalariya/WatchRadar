@@ -56,14 +56,19 @@ export default function CollectionsPage() {
         body: JSON.stringify({ name: name.trim(), description: description.trim() }),
       });
 
-      if (res.ok) {
-        setName('');
-        setDescription('');
-        setShowCreateModal(false);
-        fetchCollections();
+      const data = await res.json();
+      if (!res.ok) {
+        setNameError(data.error || 'Failed to create collection');
+        return;
       }
+
+      setName('');
+      setDescription('');
+      setShowCreateModal(false);
+      fetchCollections();
     } catch (err) {
       console.error(err);
+      setNameError('An unexpected error occurred. Please try again.');
     } finally {
       setIsCreating(false);
     }
@@ -96,13 +101,18 @@ export default function CollectionsPage() {
         body: JSON.stringify({ name: editName.trim(), description: editDescription.trim() }),
       });
 
-      if (res.ok) {
-        setShowEditModal(false);
-        setEditingCollection(null);
-        fetchCollections();
+      const data = await res.json();
+      if (!res.ok) {
+        setEditNameError(data.error || 'Failed to update collection');
+        return;
       }
+
+      setShowEditModal(false);
+      setEditingCollection(null);
+      fetchCollections();
     } catch (err) {
       console.error(err);
+      setEditNameError('An unexpected error occurred. Please try again.');
     } finally {
       setIsUpdating(false);
     }
@@ -193,12 +203,13 @@ export default function CollectionsPage() {
                     if (e.target.value.trim()) setNameError('');
                   }}
                   placeholder="e.g. Marvel Cinematic Universe"
-                  className={`input ${nameError ? 'border-red-500 focus:border-red-500' : ''}`}
+                  className={`input ${nameError ? 'input-error border-red-500' : ''}`}
+                  style={nameError ? { borderColor: '#ef4444' } : undefined}
                   autoFocus
                 />
                 {nameError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                    <AlertCircle className="w-3 h-3" /> {nameError}
+                  <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                    <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {nameError}
                   </p>
                 )}
               </div>
@@ -256,12 +267,13 @@ export default function CollectionsPage() {
                     if (e.target.value.trim()) setEditNameError('');
                   }}
                   placeholder="e.g. Marvel Cinematic Universe"
-                  className={`input ${editNameError ? 'border-red-500 focus:border-red-500' : ''}`}
+                  className={`input ${editNameError ? 'input-error border-red-500' : ''}`}
+                  style={editNameError ? { borderColor: '#ef4444' } : undefined}
                   autoFocus
                 />
                 {editNameError && (
-                  <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-semibold">
-                    <AlertCircle className="w-3 h-3" /> {editNameError}
+                  <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                    <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {editNameError}
                   </p>
                 )}
               </div>

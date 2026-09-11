@@ -1,7 +1,11 @@
+"use client";
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { Heart, Film } from 'lucide-react';
 import { getStatusLabel, getStatusColor, getTMDBImageUrl } from '@/lib/utils/format';
+import { getMediaOverride } from '@/lib/utils/storage';
 
 interface MediaCardProps {
   media?: any;
@@ -61,17 +65,63 @@ export default function MediaCard({
   const mediaId = media?.id || id || '';
   const mediaTitle = media?.title || title || '';
   const mediaType = (media?.type || type || 'MOVIE') as 'MOVIE' | 'SERIES';
-  const mediaStatus = media?.status || status || 'PLAN_TO_WATCH';
+  const initialStatus = media?.status || status || 'UNASSIGNED';
   const mediaPoster = media?.posterPath !== undefined ? media.posterPath : posterPath;
   const mediaBackdrop = media?.backdropPath !== undefined ? media.backdropPath : backdropPath;
   const mediaRelease = media?.releaseDate !== undefined ? media.releaseDate : releaseDate;
   const mediaImdb = media?.imdbRating !== undefined ? media.imdbRating : imdbRating;
-  const mediaMyRating = media?.myRating !== undefined ? media.myRating : myRating;
-  const mediaFav = media?.isFavorite !== undefined ? media.isFavorite : isFavorite;
-  const mediaSeason = media?.currentSeason !== undefined ? media.currentSeason : currentSeason;
-  const mediaEpisode = media?.currentEpisode !== undefined ? media.currentEpisode : currentEpisode;
+  const initialMyRating = media?.myRating !== undefined ? media.myRating : myRating;
+  const initialFav = media?.isFavorite !== undefined ? media.isFavorite : isFavorite;
+  const initialSeason = media?.currentSeason !== undefined ? media.currentSeason : currentSeason;
+  const initialEpisode = media?.currentEpisode !== undefined ? media.currentEpisode : currentEpisode;
 
-  
+  let calculatedProgress = media?.progressPercentage;
+  if (calculatedProgress === undefined || calculatedProgress === null) {
+    if (media?.status === 'WATCHED') {
+      calculatedProgress = 100;
+    } else if (media?.watchedEpisodes && media?.totalEpisodes) {
+      calculatedProgress = Math.round((media.watchedEpisodes / media.totalEpisodes) * 100);
+    } else {
+      calculatedProgress = progressPercentage ?? 0;
+    }
+  }
+
+  const [mediaStatus, setMediaStatus] = useState(initialStatus);
+  const [mediaProgress, setMediaProgress] = useState(calculatedProgress);
+  const [mediaFav, setMediaFav] = useState(initialFav);
+  const [mediaMyRating, setMediaMyRating] = useState(initialMyRating);
+  const [mediaSeason, setMediaSeason] = useState(initialSeason);
+  const [mediaEpisode, setMediaEpisode] = useState(initialEpisode);
+
+  useEffect(() => {
+    setMediaStatus(initialStatus);
+    setMediaProgress(calculatedProgress);
+    setMediaFav(initialFav);
+    setMediaMyRating(initialMyRating);
+    setMediaSeason(initialSeason);
+    setMediaEpisode(initialEpisode);
+  }, [initialStatus, calculatedProgress, initialFav, initialMyRating, initialSeason, initialEpisode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !mediaId) return;
+
+    const syncOverride = () => {
+      const override = getMediaOverride(mediaId);
+      if (override) {
+        if (override.status !== undefined) setMediaStatus(override.status);
+        if (override.progressPercentage !== undefined) setMediaProgress(override.progressPercentage);
+        if (override.isFavorite !== undefined) setMediaFav(override.isFavorite);
+        if (override.myRating !== undefined) setMediaMyRating(override.myRating);
+        if (override.currentSeason !== undefined) setMediaSeason(override.currentSeason);
+        if (override.currentEpisode !== undefined) setMediaEpisode(override.currentEpisode);
+      }
+    };
+
+    syncOverride();
+    window.addEventListener('watchradar_storage_change', syncOverride);
+    return () => window.removeEventListener('watchradar_storage_change', syncOverride);
+  }, [mediaId]);
+
   const rawPlatforms = media?.platforms || platforms || [];
   const platformList: Array<{ name: string; color?: string | null }> = rawPlatforms.map((p: any) =>
     typeof p === 'string' ? { name: p } : { name: p.name, color: p.color }
@@ -90,11 +140,6 @@ export default function MediaCard({
   const rawAudioLangs: string[] = media?.audioLanguages || audioLanguages || [];
   const rawSubLangs: string[] = media?.subtitleLanguages || subtitleLanguages || [];
   const allLangs = Array.from(new Set([...rawAudioLangs, ...rawSubLangs]));
-
-  // Use progressPercentage from media or props.
-  const mediaProgress = media?.progressPercentage !== undefined 
-    ? media.progressPercentage 
-    : progressPercentage;
 
   let year = '';
   if (mediaRelease) {
@@ -152,9 +197,11 @@ export default function MediaCard({
                   }`}>
                     {mediaType}
                   </span>
-                  <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${statusColor}`}>
-                    {statusLabel}
-                  </span>
+                  {mediaStatus !== 'UNASSIGNED' && (
+                    <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${statusColor}`}>
+                      {statusLabel}
+                    </span>
+                  )}
                   {mediaFav && (
                     <div className="bg-[var(--bg-elevated)] p-1 rounded-full border border-red-500/40 shadow-sm">
                       <Heart className="w-3 h-3 text-red-500 fill-red-500" />
@@ -197,8 +244,8 @@ export default function MediaCard({
                     </span>
                     <span>{Math.round(mediaProgress)}%</span>
                   </div>
-                  <div className="h-1.5 w-full bg-[var(--bg-muted)] rounded-full overflow-hidden p-0.5 border border-purple-500/20">
-                    <div className="h-full rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-[var(--accent)]" style={{ width: `${Math.max(mediaProgress, 4)}%` }} />
+                  <div className="h-1.5 w-full bg-[var(--bg-muted)]/80 rounded-full overflow-hidden border border-[var(--border)]">
+                    <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-[var(--accent)] transition-all duration-300 opacity-90" style={{ width: `${mediaProgress > 0 ? Math.max(mediaProgress, 3) : 0}%` }} />
                   </div>
                 </div>
               )}
@@ -273,9 +320,11 @@ export default function MediaCard({
             </span>
 
             <div className="flex items-center gap-1">
-              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-md border border-white/10 shadow-md ${statusColor}`}>
-                {statusLabel}
-              </span>
+              {mediaStatus !== 'UNASSIGNED' && (
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-md border border-white/10 shadow-md ${statusColor}`}>
+                  {statusLabel}
+                </span>
+              )}
               {mediaFav && (
                 <div className="bg-black/70 p-1.5 rounded-full backdrop-blur-md border border-red-500/40 shadow-lg animate-pulse">
                   <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
@@ -310,10 +359,10 @@ export default function MediaCard({
               </span>
               <span>{Math.round(mediaProgress)}%</span>
             </div>
-            <div className="h-1.5 w-full bg-[var(--bg-muted)] rounded-full overflow-hidden p-0.5 border border-purple-500/20">
+            <div className="h-1.5 w-full bg-[var(--bg-muted)]/80 rounded-full overflow-hidden border border-[var(--border)]">
               <div 
-                className="h-full rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-[var(--accent)] transition-all duration-500 shadow-sm"
-                style={{ width: `${Math.max(mediaProgress, 4)}%` }}
+                className="h-full rounded-full bg-gradient-to-r from-purple-600 to-[var(--accent)] transition-all duration-500 shadow-sm opacity-90"
+                style={{ width: `${mediaProgress > 0 ? Math.max(mediaProgress, 3) : 0}%` }}
               />
             </div>
           </div>

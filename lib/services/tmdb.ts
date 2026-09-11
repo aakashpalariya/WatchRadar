@@ -14,7 +14,10 @@ async function tmdbFetch<T>(endpoint: string, params: Record<string, string> = {
   url.searchParams.set("api_key", API_KEY);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(3000),
+  });
   if (!res.ok) throw new Error(`TMDB error ${res.status}: ${res.statusText}`);
   return res.json() as Promise<T>;
 }

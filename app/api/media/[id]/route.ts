@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 import prisma from '@/lib/db/prisma';
@@ -62,15 +63,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = await request.json();
-    const { title, status, myRating, myReview, isFavorite, notes, platformIds, tagIds } = body;
+    const { title, status, myRating, myReview, isFavorite, notes, platformIds, tagIds, watchedAt } = body;
 
     const data: any = {};
     if (title !== undefined) data.title = title;
+    
+    if (watchedAt !== undefined) {
+      data.watchedAt = watchedAt ? new Date(watchedAt) : null;
+    }
+
     if (status !== undefined) {
       data.status = status;
       if (status === 'WATCHED') {
         data.progressPercentage = 100;
-        data.watchedAt = new Date();
+        data.watchedAt = data.watchedAt || (existing.watchedAt ? existing.watchedAt : new Date());
         if (existing.type === 'MOVIE') {
           data.watchedEpisodes = 1;
         } else {
@@ -78,22 +84,44 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             data.watchedEpisodes = existing.totalEpisodes;
             data.currentEpisode = existing.totalEpisodes;
           }
+          // Mark all episodes in series as watched
+          await prisma.episode.updateMany({
+            where: { season: { mediaId } },
+            data: { isWatched: true, watchedAt: data.watchedAt }
+          }).catch(() => {});
         }
       } else if (status === 'WANT_TO_WATCH') {
         data.progressPercentage = 0;
         data.watchedEpisodes = 0;
         data.currentEpisode = 0;
         data.currentSeason = 1;
+        data.watchedAt = null;
+        if (existing.type === 'SERIES') {
+          await prisma.episode.updateMany({
+            where: { season: { mediaId } },
+            data: { isWatched: false, watchedAt: null }
+          }).catch(() => {});
+        }
       } else if (status === 'WATCHING') {
+        data.watchedAt = null;
         if (existing.type === 'MOVIE') {
           if (!existing.progressPercentage || existing.progressPercentage === 0 || existing.progressPercentage === 100) {
             data.progressPercentage = 25;
+            data.watchedEpisodes = 0;
           }
-        } else if (existing.progressPercentage === 0 || !existing.progressPercentage) {
+        } else if (existing.progressPercentage === 0 || !existing.progressPercentage || existing.progressPercentage === 100) {
           data.currentSeason = 1;
           data.currentEpisode = 1;
+          data.watchedEpisodes = 1;
           data.progressPercentage = existing.totalEpisodes ? Math.round((1 / existing.totalEpisodes) * 100) : 10;
         }
+      }
+    } else if (data.watchedAt && existing.status !== 'WATCHED') {
+      // If watchedAt is updated with a valid date, sync status to WATCHED
+      data.status = 'WATCHED';
+      data.progressPercentage = 100;
+      if (existing.type === 'MOVIE') {
+        data.watchedEpisodes = 1;
       }
     }
     if (myRating !== undefined) data.myRating = myRating;
@@ -119,6 +147,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         data: tagIds.map((tid: string) => ({ mediaId, tagId: tid }))
       });
     }
+
+    try {
+      revalidatePath(`/library/${mediaId}`);
+      revalidatePath('/library');
+      revalidatePath('/stats');
+      revalidatePath('/favorites');
+      revalidatePath('/history');
+    } catch {}
 
     return NextResponse.json(updated);
   } catch (error) {

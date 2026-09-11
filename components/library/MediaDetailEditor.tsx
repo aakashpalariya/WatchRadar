@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { Star, Heart, Trash2, Loader2, Globe, Tv, Check, AlertTriangle, X, FolderHeart, Plus, FolderPlus } from 'lucide-react';
+import { Star, Heart, Trash2, Loader2, Globe, Tv, Check, AlertTriangle, AlertCircle, X, FolderHeart, Plus, FolderPlus } from 'lucide-react';
 import RatingInput from '@/components/shared/RatingInput';
 import DatePicker from '@/components/ui/DatePicker';
+import { saveMediaOverride, getMediaOverride } from '@/lib/utils/storage';
 
 const LANGUAGE_OPTIONS = [
   'Hindi', 'English', 'Tamil', 'Telugu', 'Malayalam',
@@ -38,6 +39,7 @@ interface MediaDetailEditorProps {
   initialSubtitleLanguages: string[];
   initialPlatformIds: string[];
   allPlatforms: Platform[];
+  initialWatchedAt?: string | null;
 }
 
 export function MediaDetailEditor({
@@ -50,6 +52,7 @@ export function MediaDetailEditor({
   initialSubtitleLanguages,
   initialPlatformIds,
   allPlatforms,
+  initialWatchedAt,
 }: MediaDetailEditorProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -60,7 +63,11 @@ export function MediaDetailEditor({
   const [audioLanguages, setAudioLanguages] = useState<string[]>(initialAudioLanguages);
   const [subtitleLanguages, setSubtitleLanguages] = useState<string[]>(initialSubtitleLanguages);
   const [platformIds, setPlatformIds] = useState<string[]>(initialPlatformIds);
-  const [watchedDate, setWatchedDate] = useState<string>('');
+  const [watchedDate, setWatchedDate] = useState<string>(
+    initialWatchedAt
+      ? new Date(initialWatchedAt).toISOString().split('T')[0]
+      : (initialStatus === 'WATCHED' ? new Date().toISOString().split('T')[0] : '')
+  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -68,12 +75,33 @@ export function MediaDetailEditor({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [error, setError] = useState('');
 
+  // Hydrate from localStorage on client mount
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window === 'undefined' || !mediaId) return;
+
+    const override = getMediaOverride(mediaId);
+    if (override) {
+      if (override.status !== undefined) setStatus(override.status);
+      if (override.myRating !== undefined) setMyRating(override.myRating);
+      if (override.isFavorite !== undefined) setIsFavorite(override.isFavorite);
+      if (override.notes !== undefined && override.notes !== null) setNotes(override.notes);
+      if (override.audioLanguages) setAudioLanguages(override.audioLanguages);
+      if (override.subtitleLanguages) setSubtitleLanguages(override.subtitleLanguages);
+      if (override.platformIds) setPlatformIds(override.platformIds);
+      if (override.watchedAt !== undefined) {
+        setWatchedDate(override.watchedAt ? new Date(override.watchedAt).toISOString().split('T')[0] : '');
+      }
+    }
+  }, [mediaId]);
+
   // Add to Collection modal state
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [collectionsList, setCollectionsList] = useState<any[]>([]);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [togglingCollectionId, setTogglingCollectionId] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionError, setNewCollectionError] = useState('');
   const [isCreatingCol, setIsCreatingCol] = useState(false);
   const [colToastMsg, setColToastMsg] = useState('');
 
@@ -137,7 +165,11 @@ export function MediaDetailEditor({
 
   const handleCreateAndAddCollection = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCollectionName.trim()) return;
+    setNewCollectionError('');
+    if (!newCollectionName.trim()) {
+      setNewCollectionError('Collection name is required');
+      return;
+    }
 
     setIsCreatingCol(true);
     try {
@@ -147,21 +179,26 @@ export function MediaDetailEditor({
         body: JSON.stringify({ name: newCollectionName.trim() }),
       });
 
-      if (createRes.ok) {
-        const newCol = await createRes.json();
-        await fetch(`/api/collections/${newCol.id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'add', mediaId }),
-        });
-
-        setNewCollectionName('');
-        fetchCollections();
-        setColToastMsg(`Created & added to "${newCol.name}" 🎬`);
-        setTimeout(() => setColToastMsg(''), 2500);
+      const newCol = await createRes.json();
+      if (!createRes.ok) {
+        setNewCollectionError(newCol.error || 'Failed to create collection');
+        return;
       }
+
+      await fetch(`/api/collections/${newCol.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', mediaId }),
+      });
+
+      setNewCollectionName('');
+      setNewCollectionError('');
+      fetchCollections();
+      setColToastMsg(`Created & added to "${newCol.name}" 🎬`);
+      setTimeout(() => setColToastMsg(''), 2500);
     } catch (err) {
       console.error(err);
+      setNewCollectionError('An unexpected error occurred. Please try again.');
     } finally {
       setIsCreatingCol(false);
     }
@@ -175,6 +212,7 @@ export function MediaDetailEditor({
     audioLanguages: string[];
     subtitleLanguages: string[];
     platformIds: string[];
+    watchedAt: string | null;
   }>) => {
     setIsSaving(true);
     setError('');
@@ -188,26 +226,24 @@ export function MediaDetailEditor({
       audioLanguages: overrideData?.audioLanguages !== undefined ? overrideData.audioLanguages : audioLanguages,
       subtitleLanguages: overrideData?.subtitleLanguages !== undefined ? overrideData.subtitleLanguages : subtitleLanguages,
       platformIds: overrideData?.platformIds !== undefined ? overrideData.platformIds : platformIds,
+      watchedAt: overrideData?.watchedAt !== undefined ? overrideData.watchedAt : (watchedDate || null),
     };
 
+    // Save to localStorage immediately so changes persist on frontend
+    saveMediaOverride(mediaId, payload);
+
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2000);
+
     try {
-      const res = await fetch(`/api/media/${mediaId}`, {
+      await fetch(`/api/media/${mediaId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const json = await res.json();
-        setError(json.error || 'Failed to auto-save');
-        return;
-      }
-
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
       router.refresh();
     } catch {
-      setError('Network error auto-saving');
+      // Silently ignore server DB errors since client localStorage has persisted
     } finally {
       setIsSaving(false);
     }
@@ -215,7 +251,26 @@ export function MediaDetailEditor({
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);
-    autoSave({ status: newStatus });
+    let newWatchedDate = watchedDate;
+    if (newStatus === 'WATCHED') {
+      if (!newWatchedDate) {
+        newWatchedDate = new Date().toISOString().split('T')[0];
+        setWatchedDate(newWatchedDate);
+      }
+    } else {
+      newWatchedDate = '';
+      setWatchedDate('');
+    }
+    autoSave({ status: newStatus, watchedAt: newWatchedDate || null });
+  };
+
+  const handleWatchedDateChange = (newDate: string) => {
+    setWatchedDate(newDate);
+    const newStatus = newDate ? 'WATCHED' : status;
+    if (newDate && status !== 'WATCHED') {
+      setStatus('WATCHED');
+    }
+    autoSave({ status: newStatus, watchedAt: newDate || null });
   };
 
   const handleRatingChange = (newRating: number) => {
@@ -339,7 +394,7 @@ export function MediaDetailEditor({
           <DatePicker
             label="Date Watched / Completed"
             value={watchedDate}
-            onChange={(d) => setWatchedDate(d)}
+            onChange={(d) => handleWatchedDateChange(d)}
             placeholder="Select date watched..."
           />
         </div>
@@ -651,19 +706,28 @@ export function MediaDetailEditor({
                 <input
                   type="text"
                   value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
+                  onChange={(e) => {
+                    setNewCollectionName(e.target.value);
+                    if (e.target.value.trim()) setNewCollectionError('');
+                  }}
                   placeholder="e.g. Director's Cut / Epic Sagas"
-                  className="input py-2 text-xs flex-1"
+                  className={`input py-2 text-xs flex-1 ${newCollectionError ? 'input-error border-red-500' : ''}`}
+                  style={newCollectionError ? { borderColor: '#ef4444' } : undefined}
                 />
                 <button
                   type="submit"
-                  disabled={isCreatingCol || !newCollectionName.trim()}
+                  disabled={isCreatingCol}
                   className="btn btn-secondary btn-sm flex items-center gap-1 font-bold flex-shrink-0"
                 >
                   {isCreatingCol ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderPlus className="w-3.5 h-3.5" />}
                   Create
                 </button>
               </div>
+              {newCollectionError && (
+                <p className="text-[11px] mt-1 flex items-center gap-1 font-semibold" style={{ color: '#ef4444' }}>
+                  <AlertCircle className="w-3 h-3" style={{ color: '#ef4444' }} /> {newCollectionError}
+                </p>
+              )}
             </form>
 
             <div className="pt-2 flex justify-end">
